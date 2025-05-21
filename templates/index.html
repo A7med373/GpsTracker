@@ -62,17 +62,17 @@
   <script>
     // Initialize map
     const map = L.map('map').setView([56.95, 24.1], 8);
-    
+
     // Add OpenStreetMap tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
     }).addTo(map);
-    
+
     // Store markers for later reference
     let markers = [];
     let polyline = null;
-    
+
     // Function to load and display tracker data
     function loadTrackerData(imei = null, limit = null) {
       // Build API URL with optional parameters
@@ -81,49 +81,62 @@
       if (imei) params.push(`imei=${imei}`);
       if (limit) params.push(`limit=${limit}`);
       if (params.length > 0) url += '?' + params.join('&');
-      
+
       // Fetch data from API
       fetch(url)
-        .then(response => response.json())
-        .then(points => {
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Check if the response contains an error
+          if (data.error) {
+            throw new Error(`API error: ${data.error} - ${data.message || ''}`);
+          }
+
           // Clear existing markers
           markers.forEach(marker => map.removeLayer(marker));
           markers = [];
-          
+
           // Remove existing polyline if any
           if (polyline) map.removeLayer(polyline);
-          
-          if (points.length === 0) {
+
+          if (data.length === 0) {
             document.getElementById('tracker-info').innerHTML = 'No tracker data available.';
             return;
           }
-          
+
+          // Store points for processing
+          const points = data;
+
           // Create array for polyline
           const polylinePoints = [];
-          
+
           // Add markers for each point
           points.forEach((p, index) => {
             const markerColor = index === 0 ? 'red' : 'blue';
             const marker = L.marker([p.lat, p.lng], {
               title: `IMEI: ${p.imei}\nTime: ${p.ts}\nSpeed: ${p.speed || 0} km/h`
             }).addTo(map);
-            
+
             marker.bindPopup(`
               <strong>IMEI:</strong> ${p.imei}<br>
               <strong>Time:</strong> ${new Date(p.ts).toLocaleString()}<br>
               <strong>Speed:</strong> ${p.speed || 0} km/h<br>
               <strong>Coordinates:</strong> ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}
             `);
-            
+
             markers.push(marker);
             polylinePoints.push([p.lat, p.lng]);
           });
-          
+
           // Create polyline connecting all points
           if (polylinePoints.length > 1) {
             polyline = L.polyline(polylinePoints, {color: 'blue', weight: 3, opacity: 0.7}).addTo(map);
           }
-          
+
           // Update info panel with latest data
           const latest = points[0];
           document.getElementById('tracker-info').innerHTML = `
@@ -132,28 +145,33 @@
             <strong>Speed:</strong> ${latest.speed || 0} km/h<br>
             <strong>Points Displayed:</strong> ${points.length}
           `;
-          
+
           // Update last update time
           document.getElementById('last-update').innerHTML = `Last updated: ${new Date().toLocaleString()}`;
-          
+
           // Center map on the latest point
           map.setView([latest.lat, latest.lng], 13);
         })
         .catch(error => {
           console.error('Error fetching tracker data:', error);
-          document.getElementById('tracker-info').innerHTML = 'Error loading tracker data.';
+          document.getElementById('tracker-info').innerHTML = `
+            <div style="color: red;">Error loading tracker data:</div>
+            <div>${error.message || 'Unknown error'}</div>
+            <div style="font-size: 0.8em; margin-top: 5px;">Try refreshing the page or check server logs.</div>
+          `;
+          document.getElementById('last-update').innerHTML = `Error occurred: ${new Date().toLocaleString()}`;
         });
     }
-    
+
     // Function to refresh data
     function refreshData() {
       loadTrackerData();
     }
-    
+
     // Load data on page load
     document.addEventListener('DOMContentLoaded', () => {
       loadTrackerData();
-      
+
       // Auto-refresh every 5 minutes
       setInterval(refreshData, 5 * 60 * 1000);
     });

@@ -140,6 +140,40 @@ If you encounter a "502 Bad Gateway" error after deployment, it typically means 
    sudo systemctl restart nginx
    ```
 
+### Troubleshooting API and Database Issues
+
+If you encounter issues with the API endpoints or database connectivity, the application includes several features to help diagnose and resolve problems:
+
+1. **Health Check Endpoint**: Use the `/api/health` endpoint to check if the application and database are functioning correctly:
+   ```
+   curl http://your-server/api/health
+   ```
+   This will return a JSON response with the status of the application and database connection.
+
+2. **Detailed Error Responses**: API endpoints now return detailed error messages with appropriate HTTP status codes:
+   - 400 Bad Request: Missing or invalid parameters
+   - 500 Internal Server Error: Database or server errors
+
+3. **Comprehensive Logging**: The application now includes comprehensive logging to help diagnose issues:
+   - Application startup and configuration
+   - Database connection and initialization
+   - API requests and responses
+   - Database operations
+   - Error details with stack traces
+
+4. **Accessing Logs**: You can access the application logs to diagnose issues:
+   ```
+   # View application logs
+   sudo tail -f /path/to/app.log
+
+   # View Gunicorn error logs (in production)
+   sudo tail -f /var/log/gunicorn-error.log
+   ```
+
+5. **Frontend Error Display**: The web interface now displays more detailed error messages when API requests fail, helping users understand what went wrong.
+
+6. **Database Session Management**: The application now ensures that database sessions are properly closed, even in error cases, to prevent resource leaks.
+
 The deployment script will:
 - Install required system packages (Python, PostgreSQL, Nginx)
 - Set up a PostgreSQL database for the application
@@ -197,7 +231,10 @@ The tracker will now send location data to your server every hour.
   - `lng` (required): Longitude
   - `speed` (optional): Speed in km/h
   - `ts` (required): Timestamp (format: YYYY-MM-DD HH:MM:SS)
-- **Response**: 200 OK with body "OK" or 400 Bad Request with error message
+- **Response**: 
+  - 200 OK with body "OK" on success
+  - 400 Bad Request with error message if parameters are missing or invalid
+  - 500 Internal Server Error with error message if a database error occurs
 
 ### Retrieving Location Data
 
@@ -206,18 +243,49 @@ The tracker will now send location data to your server every hour.
 - **Parameters**:
   - `imei` (optional): Filter by tracker IMEI
   - `limit` (optional): Limit the number of results
-- **Response**: JSON array of location objects:
-  ```json
-  [
+- **Response**: 
+  - Success: JSON array of location objects:
+    ```json
+    [
+      {
+        "imei": "123456789012345",
+        "lat": 56.95,
+        "lng": 24.11,
+        "speed": 0.0,
+        "ts": "2023-05-21T14:00:00"
+      },
+      ...
+    ]
+    ```
+  - Error: JSON object with error details:
+    ```json
     {
-      "imei": "123456789012345",
-      "lat": 56.95,
-      "lng": 24.11,
-      "speed": 0.0,
-      "ts": "2023-05-21T14:00:00"
-    },
-    ...
-  ]
+      "error": "Database error",
+      "message": "Error details..."
+    }
+    ```
+
+### Health Check
+
+- **Endpoint**: `/api/health`
+- **Method**: GET
+- **Description**: Checks the health of the application and database connection
+- **Response**: JSON object with health status:
+  ```json
+  {
+    "status": "ok",
+    "timestamp": "2023-05-21T14:00:00.123456",
+    "database": "connected"
+  }
+  ```
+  If there's a database error:
+  ```json
+  {
+    "status": "ok",
+    "timestamp": "2023-05-21T14:00:00.123456",
+    "database": "error",
+    "error": "Error details..."
+  }
   ```
 
 ## GF22 Tracker SMS Commands Reference
