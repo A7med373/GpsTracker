@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GF22 GPS Tracker - Test Form</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .response {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    .success {
+      color: #4CAF50;
+    }
+    .error {
+      color: #f44336;
+    }
+    .note {
+      background-color: #fffde7;
+      padding: 10px;
+      border-left: 4px solid #ffeb3b;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>GF22 GPS Tracker - Test Form</h1>
+  
+  <div class="note">
+    <p><strong>Note:</strong> This form allows you to manually test the <code>/update</code> endpoint by sending a location update with all required parameters.</p>
+    <p>All fields marked with * are required.</p>
+  </div>
+  
+  <form id="update-form">
+    <div class="form-group">
+      <label for="imei">IMEI *</label>
+      <input type="text" id="imei" name="imei" value="861261027896790" required>
+    </div>
+    
+    <div class="form-group">
+      <label for="lat">Latitude *</label>
+      <input type="number" id="lat" name="lat" value="56.95" step="0.000001" required>
+    </div>
+    
+    <div class="form-group">
+      <label for="lng">Longitude *</label>
+      <input type="number" id="lng" name="lng" value="24.11" step="0.000001" required>
+    </div>
+    
+    <div class="form-group">
+      <label for="speed">Speed (km/h)</label>
+      <input type="number" id="speed" name="speed" value="0" step="0.1">
+    </div>
+    
+    <div class="form-group">
+      <label for="ts">Timestamp *</label>
+      <input type="text" id="ts" name="ts" required>
+    </div>
+    
+    <button type="submit">Send Location Update</button>
+  </form>
+  
+  <div class="response" id="response" style="display: none;">
+    <h3>Response:</h3>
+    <div id="response-content"></div>
+  </div>
+  
+  <script>
+    // Set current timestamp as default
+    document.addEventListener('DOMContentLoaded', function() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      
+      document.getElementById('ts').value = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    });
+    
+    // Handle form submission
+    document.getElementById('update-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const form = e.target;
+      const formData = new FormData(form);
+      const params = new URLSearchParams(formData);
+      
+      // Show response area
+      const responseArea = document.getElementById('response');
+      const responseContent = document.getElementById('response-content');
+      responseArea.style.display = 'block';
+      responseContent.innerHTML = 'Sending request...';
+      
+      // Send request to /update endpoint
+      fetch(`/update?${params.toString()}`)
+        .then(response => {
+          return response.text().then(text => {
+            return {
+              status: response.status,
+              ok: response.ok,
+              text: text
+            };
+          });
+        })
+        .then(result => {
+          if (result.ok) {
+            responseContent.innerHTML = `
+              <div class="success">
+                <strong>Success!</strong> Status code: ${result.status}
+              </div>
+              <pre>${result.text}</pre>
+              <p>The location update was successfully sent to the server.</p>
+              <p>You can now view this point on the <a href="/">map</a>.</p>
+            `;
+          } else {
+            responseContent.innerHTML = `
+              <div class="error">
+                <strong>Error!</strong> Status code: ${result.status}
+              </div>
+              <pre>${result.text}</pre>
+              <p>The server returned an error. Please check the parameters and try again.</p>
+            `;
+          }
+        })
+        .catch(error => {
+          responseContent.innerHTML = `
+            <div class="error">
+              <strong>Error!</strong> Failed to send request.
+            </div>
+            <pre>${error.message}</pre>
+          `;
+        });
+    });
+  </script>
+</body>
+</html>

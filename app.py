@@ -75,6 +75,12 @@ def index():
     """Render the main page with the map"""
     return render_template('index.html')
 
+@app.route('/test')
+def test_form():
+    """Render the test form for manual testing of the /update endpoint"""
+    app.logger.info("Test form requested")
+    return render_template('test_form.html')
+
 # ========== Tracker Data Reception ==========  
 @app.route('/update', methods=['GET', 'POST'])
 def update():

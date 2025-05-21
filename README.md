@@ -174,6 +174,85 @@ If you encounter issues with the API endpoints or database connectivity, the app
 
 6. **Database Session Management**: The application now ensures that database sessions are properly closed, even in error cases, to prevent resource leaks.
 
+### Common Issues and Solutions
+
+#### "Error loading tracker data: HTTP error! Status: 500"
+
+If you see this error on the main page:
+
+1. **Check the database connection**:
+   - Use the `/api/health` endpoint to verify the database is connected
+   - If the database shows as "connected", the issue may be with the query or data processing
+
+2. **Check for data in the database**:
+   - If the database is empty, you need to send some location updates first
+   - Use the test form at `/test` or the test script to add sample data
+
+3. **Check the application logs**:
+   - Look for error messages related to the `/api/locations` endpoint
+   - Database query errors or data format issues will be logged
+
+#### "Missing imei" when accessing /update
+
+This error occurs when you access the `/update` endpoint without providing all required parameters:
+
+1. **Use the test form**:
+   - Navigate to `/test` in your browser to use a form with all required fields
+
+2. **Include all required parameters**:
+   - The `/update` endpoint requires: `imei`, `lat`, `lng`, and `ts`
+   - Example: `/update?imei=861261027896790&lat=56.95&lng=24.11&ts=2025-05-21%2014:00:00`
+
+3. **Check parameter format**:
+   - The timestamp (`ts`) must be in the format: `YYYY-MM-DD HH:MM:SS`
+   - Latitude and longitude must be valid numbers
+
+#### No Data Showing on Map
+
+If the map loads but no tracker data is displayed:
+
+1. **Add sample data first**:
+   - Use the test form at `/test` or the test script to add location data
+   - The map can only display data that has been sent to the `/update` endpoint
+   - Use the included sample data generator script:
+     ```
+     ./add_sample_data.py --url http://your-server
+     ```
+
+2. **Check the browser console**:
+   - Open your browser's developer tools (F12) and check the console for errors
+   - Network errors or JavaScript issues will be displayed here
+
+3. **Try refreshing the data**:
+   - Click the "Refresh Data" button on the map
+   - Check the browser console for any errors during the refresh
+
+### Sample Data Generator
+
+The project includes a script to quickly generate sample location data:
+
+```
+./add_sample_data.py [options]
+```
+
+Options:
+- `--url URL`: URL of the tracker service (default: http://localhost:5000)
+- `--imei IMEI`: IMEI of the tracker (default: 861261027896790)
+- `--points N`: Number of sample points to add (default: 5)
+
+This script will:
+1. Generate random location points in Europe
+2. Create points at 1-hour intervals starting from 24 hours ago
+3. Send each point to the `/update` endpoint
+4. Display the server's response for each point
+
+Example:
+```
+./add_sample_data.py --url http://your-server --points 10
+```
+
+After running the script, you can view the data on the map by visiting the main page.
+
 The deployment script will:
 - Install required system packages (Python, PostgreSQL, Nginx)
 - Set up a PostgreSQL database for the application
@@ -235,6 +314,30 @@ The tracker will now send location data to your server every hour.
   - 200 OK with body "OK" on success
   - 400 Bad Request with error message if parameters are missing or invalid
   - 500 Internal Server Error with error message if a database error occurs
+
+#### Testing the Update Endpoint
+
+You can test the `/update` endpoint in several ways:
+
+1. **Using the Test Form**:
+   - Navigate to `/test` in your browser
+   - Fill in the required fields (IMEI, latitude, longitude, timestamp)
+   - Click "Send Location Update"
+   - The form will display the server's response
+
+2. **Using the Test Script**:
+   ```
+   ./test_tracker.py --url http://your-server
+   ```
+   This will simulate a tracker sending multiple location updates.
+
+3. **Manual URL Construction**:
+   ```
+   http://your-server/update?imei=861261027896790&lat=56.95&lng=24.11&speed=0&ts=2025-05-21%2014:00:00
+   ```
+   Note that all parameters must be properly URL-encoded.
+
+If you receive a "Missing imei" (or similar) error, it means you haven't provided all the required parameters in your request.
 
 ### Retrieving Location Data
 
