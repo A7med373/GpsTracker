@@ -1,0 +1,89 @@
+#!/bin/bash
+# Deployment script for GF22 GPS Tracker web service on VPS server
+# Server details:
+# - IPv4: 109.73.194.53
+# - IPv6: 2a03:6f00:a::cb68
+
+set -e  # Exit on error
+
+echo "Deploying GF22 GPS Tracker web service to VPS..."
+
+# Check if running as root (needed for port 80)
+if [ "$(id -u)" -ne 0 ]; then
+    echo "This script must be run as root to bind to port 80"
+    exit 1
+fi
+
+# Install required system packages
+echo "Installing system dependencies..."
+apt-get update
+apt-get install -y python3 python3-pip postgresql postgresql-contrib nginx
+
+# Create PostgreSQL database and user
+echo "Setting up PostgreSQL database..."
+sudo -u postgres psql -c "CREATE DATABASE tracker_db;"
+sudo -u postgres psql -c "CREATE USER tracker_user WITH PASSWORD 'your_secure_password';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE tracker_db TO tracker_user;"
+
+# Install Python dependencies
+echo "Installing Python dependencies..."
+pip3 install -r requirements.txt
+
+# Set environment variables
+export DATABASE_URL="postgresql://tracker_user:your_secure_password@localhost/tracker_db"
+export PORT=80
+
+# Create a systemd service file
+echo "Creating systemd service..."
+cat > /etc/systemd/system/gps-tracker.service << EOF
+[Unit]
+Description=GF22 GPS Tracker Web Service
+After=network.target postgresql.service
+
+[Service]
+User=root
+WorkingDirectory=$(pwd)
+Environment="DATABASE_URL=postgresql://tracker_user:your_secure_password@localhost/tracker_db"
+ExecStart=$(which gunicorn) --workers 4 --bind 0.0.0.0:80 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start the service
+echo "Starting the service..."
+systemctl daemon-reload
+systemctl enable gps-tracker
+systemctl start gps-tracker
+
+# Configure Nginx for IPv6 support (optional, as Gunicorn already binds to all interfaces)
+echo "Configuring Nginx for IPv6 support..."
+cat > /etc/nginx/sites-available/gps-tracker << EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name 109.73.194.53 2a03:6f00:a::cb68;
+
+    location / {
+        proxy_pass http://127.0.0.1:80;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
+}
+EOF
+
+# Enable the Nginx site
+ln -sf /etc/nginx/sites-available/gps-tracker /etc/nginx/sites-enabled/
+systemctl restart nginx
+
+echo "Deployment completed successfully!"
+echo "The GPS tracker service is now running on:"
+echo "- IPv4: http://109.73.194.53"
+echo "- IPv6: http://[2a03:6f00:a::cb68]"
+echo ""
+echo "To configure your GF22 tracker, send the following SMS commands:"
+echo "1. Set master phone number: 000#your_phone_number#"
+echo "2. Configure server address: Adminip#109.73.194.53#80#"
+echo "3. Enable automatic GPRS transmission: 123#1"
+echo "4. Set transmission interval to 60 minutes: Time#60#"

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GF22 GPS Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+    .info-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      max-width: 300px;
+    }
+    .info-panel h3 {
+      margin-top: 0;
+    }
+    .info-panel button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .info-panel button:hover {
+      background: #45a049;
+    }
+    .last-update {
+      font-size: 0.8em;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="info-panel">
+    <h3>GF22 GPS Tracker</h3>
+    <div id="tracker-info">Loading tracker data...</div>
+    <div class="last-update" id="last-update"></div>
+    <button onclick="refreshData()">Refresh Data</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // Initialize map
+    const map = L.map('map').setView([56.95, 24.1], 8);
+    
+    // Add OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    }).addTo(map);
+    
+    // Store markers for later reference
+    let markers = [];
+    let polyline = null;
+    
+    // Function to load and display tracker data
+    function loadTrackerData(imei = null, limit = null) {
+      // Build API URL with optional parameters
+      let url = '/api/locations';
+      let params = [];
+      if (imei) params.push(`imei=${imei}`);
+      if (limit) params.push(`limit=${limit}`);
+      if (params.length > 0) url += '?' + params.join('&');
+      
+      // Fetch data from API
+      fetch(url)
+        .then(response => response.json())
+        .then(points => {
+          // Clear existing markers
+          markers.forEach(marker => map.removeLayer(marker));
+          markers = [];
+          
+          // Remove existing polyline if any
+          if (polyline) map.removeLayer(polyline);
+          
+          if (points.length === 0) {
+            document.getElementById('tracker-info').innerHTML = 'No tracker data available.';
+            return;
+          }
+          
+          // Create array for polyline
+          const polylinePoints = [];
+          
+          // Add markers for each point
+          points.forEach((p, index) => {
+            const markerColor = index === 0 ? 'red' : 'blue';
+            const marker = L.marker([p.lat, p.lng], {
+              title: `IMEI: ${p.imei}\nTime: ${p.ts}\nSpeed: ${p.speed || 0} km/h`
+            }).addTo(map);
+            
+            marker.bindPopup(`
+              <strong>IMEI:</strong> ${p.imei}<br>
+              <strong>Time:</strong> ${new Date(p.ts).toLocaleString()}<br>
+              <strong>Speed:</strong> ${p.speed || 0} km/h<br>
+              <strong>Coordinates:</strong> ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}
+            `);
+            
+            markers.push(marker);
+            polylinePoints.push([p.lat, p.lng]);
+          });
+          
+          // Create polyline connecting all points
+          if (polylinePoints.length > 1) {
+            polyline = L.polyline(polylinePoints, {color: 'blue', weight: 3, opacity: 0.7}).addTo(map);
+          }
+          
+          // Update info panel with latest data
+          const latest = points[0];
+          document.getElementById('tracker-info').innerHTML = `
+            <strong>IMEI:</strong> ${latest.imei}<br>
+            <strong>Latest Position:</strong> ${latest.lat.toFixed(6)}, ${latest.lng.toFixed(6)}<br>
+            <strong>Speed:</strong> ${latest.speed || 0} km/h<br>
+            <strong>Points Displayed:</strong> ${points.length}
+          `;
+          
+          // Update last update time
+          document.getElementById('last-update').innerHTML = `Last updated: ${new Date().toLocaleString()}`;
+          
+          // Center map on the latest point
+          map.setView([latest.lat, latest.lng], 13);
+        })
+        .catch(error => {
+          console.error('Error fetching tracker data:', error);
+          document.getElementById('tracker-info').innerHTML = 'Error loading tracker data.';
+        });
+    }
+    
+    // Function to refresh data
+    function refreshData() {
+      loadTrackerData();
+    }
+    
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTrackerData();
+      
+      // Auto-refresh every 5 minutes
+      setInterval(refreshData, 5 * 60 * 1000);
+    });
+  </script>
+</body>
+</html>
