@@ -89,8 +89,10 @@ After=network.target postgresql.service
 User=root
 WorkingDirectory=$(pwd)
 Environment="DATABASE_URL=postgresql://tracker_user:your_secure_password@localhost/tracker_db"
-ExecStart=$(which gunicorn) --workers 4 --bind 0.0.0.0:8000 app:app
+ExecStart=$(which gunicorn) --workers 4 --bind 0.0.0.0:8000 --log-level debug --error-logfile /var/log/gunicorn-error.log --access-logfile /var/log/gunicorn-access.log --capture-output --timeout 120 app:app
 Restart=always
+RestartSec=5
+StartLimitInterval=0
 
 [Install]
 WantedBy=multi-user.target
@@ -120,6 +122,23 @@ if netstat -tuln | grep -q ":80 "; then
     fi
 fi
 
+# Check and configure firewall
+echo "Checking firewall configuration..."
+if command -v ufw &> /dev/null; then
+    echo "UFW firewall detected. Ensuring ports 80 and 8000 are allowed..."
+    ufw allow 80/tcp
+    ufw allow 8000/tcp
+    echo "Allowing internal communication between Nginx and Gunicorn..."
+    ufw allow from 127.0.0.1 to any port 8000 proto tcp
+elif command -v firewall-cmd &> /dev/null; then
+    echo "FirewallD detected. Ensuring ports 80 and 8000 are allowed..."
+    firewall-cmd --permanent --add-port=80/tcp
+    firewall-cmd --permanent --add-port=8000/tcp
+    firewall-cmd --reload
+else
+    echo "No firewall detected or not a supported firewall. Skipping firewall configuration."
+fi
+
 # Configure Nginx for IPv6 support
 echo "Configuring Nginx for IPv6 support..."
 # Remove default Nginx site if it exists
@@ -144,12 +163,32 @@ server {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_http_version 1.1;
+        proxy_intercept_errors on;
+        proxy_connect_timeout 60;
+        proxy_send_timeout 60;
+        proxy_read_timeout 60;
     }
 }
 EOF
 
 # Enable the Nginx site
 ln -sf /etc/nginx/sites-available/gps-tracker /etc/nginx/sites-enabled/
+
+# Check if Gunicorn is running properly
+echo "Checking if Gunicorn is running properly..."
+sleep 5  # Give Gunicorn time to start
+if ! netstat -tuln | grep -q ":8000 "; then
+    echo "Error: Gunicorn is not running on port 8000. Checking service status..."
+    systemctl status gps-tracker
+    echo "Checking Gunicorn logs..."
+    tail -n 50 /var/log/gunicorn-error.log
+    exit 1
+fi
 
 # Start Nginx
 echo "Starting Nginx service..."
@@ -176,5 +215,17 @@ echo "Troubleshooting:"
 echo "- If you encounter issues, check the service status: systemctl status gps-tracker"
 echo "- Check Nginx status: systemctl status nginx"
 echo "- View application logs: journalctl -u gps-tracker"
-echo "- View Nginx logs: tail -f /var/log/nginx/error.log"
+echo "- View Gunicorn error logs: tail -f /var/log/gunicorn-error.log"
+echo "- View Gunicorn access logs: tail -f /var/log/gunicorn-access.log"
+echo "- View Nginx error logs: tail -f /var/log/nginx/error.log"
+echo "- View Nginx access logs: tail -f /var/log/nginx/access.log"
 echo "- If port 80 is in use, identify the process: netstat -tulnp | grep :80"
+echo "- Check if Gunicorn is running: netstat -tulnp | grep :8000"
+echo "- Test direct connection to Gunicorn: curl -v http://127.0.0.1:8000/"
+echo ""
+echo "If you're getting a 502 Bad Gateway error:"
+echo "1. Check if Gunicorn is running: systemctl status gps-tracker"
+echo "2. Check Gunicorn error logs for application errors: tail -f /var/log/gunicorn-error.log"
+echo "3. Ensure Nginx can connect to Gunicorn: curl -v http://127.0.0.1:8000/"
+echo "4. Restart both services: systemctl restart gps-tracker && systemctl restart nginx"
+echo "5. Check SELinux status if applicable: sestatus (if enabled, try: setsebool -P httpd_can_network_connect 1)"

@@ -90,6 +90,56 @@ To deploy to this server:
 
    The script includes troubleshooting information if you encounter any issues during deployment.
 
+### Troubleshooting 502 Bad Gateway Errors
+
+If you encounter a "502 Bad Gateway" error after deployment, it typically means that Nginx cannot communicate with the Gunicorn application server. Here are steps to diagnose and fix the issue:
+
+1. Check if the Gunicorn service is running:
+   ```
+   sudo systemctl status gps-tracker
+   ```
+
+2. If the service is not running, start it:
+   ```
+   sudo systemctl start gps-tracker
+   ```
+
+3. Check the Gunicorn error logs for application errors:
+   ```
+   sudo tail -f /var/log/gunicorn-error.log
+   ```
+
+4. Test if Gunicorn is accessible directly:
+   ```
+   curl -v http://127.0.0.1:8000/
+   ```
+
+5. Check Nginx error logs:
+   ```
+   sudo tail -f /var/log/nginx/error.log
+   ```
+
+6. Ensure firewall is not blocking communication:
+   ```
+   sudo ufw status
+   ```
+
+7. If using SELinux, check if it's blocking communication:
+   ```
+   sudo sestatus
+   ```
+
+   If SELinux is enabled, allow Nginx to connect to network:
+   ```
+   sudo setsebool -P httpd_can_network_connect 1
+   ```
+
+8. Restart both services:
+   ```
+   sudo systemctl restart gps-tracker
+   sudo systemctl restart nginx
+   ```
+
 The deployment script will:
 - Install required system packages (Python, PostgreSQL, Nginx)
 - Set up a PostgreSQL database for the application
