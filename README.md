@@ -91,8 +91,9 @@ To deploy to this server:
 The deployment script will:
 - Install required system packages (Python, PostgreSQL, Nginx)
 - Set up a PostgreSQL database for the application
-- Configure the application to run as a systemd service
-- Set up Nginx to support both IPv4 and IPv6 access
+- Configure the application to run as a systemd service with Gunicorn on port 8000
+- Set up Nginx as a reverse proxy to forward requests from port 80 to Gunicorn on port 8000
+- Configure Nginx to support both IPv4 and IPv6 access
 
 After deployment, the application will be accessible at:
 - http://109.73.194.53 (IPv4)

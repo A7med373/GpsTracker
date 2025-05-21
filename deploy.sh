@@ -70,7 +70,7 @@ pip3 install -r requirements.txt
 
 # Set environment variables
 export DATABASE_URL="postgresql://tracker_user:your_secure_password@localhost/tracker_db"
-export PORT=80
+export PORT=8000
 
 # Create a systemd service file
 echo "Creating systemd service..."
@@ -83,7 +83,7 @@ After=network.target postgresql.service
 User=root
 WorkingDirectory=$(pwd)
 Environment="DATABASE_URL=postgresql://tracker_user:your_secure_password@localhost/tracker_db"
-ExecStart=$(which gunicorn) --workers 4 --bind 0.0.0.0:80 app:app
+ExecStart=$(which gunicorn) --workers 4 --bind 0.0.0.0:8000 app:app
 Restart=always
 
 [Install]
@@ -105,7 +105,7 @@ server {
     server_name 109.73.194.53 2a03:6f00:a::cb68;
 
     location / {
-        proxy_pass http://127.0.0.1:80;
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
