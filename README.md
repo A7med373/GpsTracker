@@ -88,10 +88,13 @@ To deploy to this server:
    sudo ./deploy.sh --drop-db
    ```
 
+   The script includes troubleshooting information if you encounter any issues during deployment.
+
 The deployment script will:
 - Install required system packages (Python, PostgreSQL, Nginx)
 - Set up a PostgreSQL database for the application
 - Configure the application to run as a systemd service with Gunicorn on port 8000
+- Check for and resolve port 80 conflicts (stopping conflicting services if necessary)
 - Set up Nginx as a reverse proxy to forward requests from port 80 to Gunicorn on port 8000
 - Configure Nginx to support both IPv4 and IPv6 access
 
