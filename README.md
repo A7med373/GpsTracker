@@ -83,6 +83,11 @@ To deploy to this server:
    sudo ./deploy.sh
    ```
 
+   If you need to redeploy and want to recreate the database:
+   ```
+   sudo ./deploy.sh --drop-db
+   ```
+
 The deployment script will:
 - Install required system packages (Python, PostgreSQL, Nginx)
 - Set up a PostgreSQL database for the application

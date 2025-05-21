@@ -6,6 +6,17 @@
 
 set -e  # Exit on error
 
+# Parse command line arguments
+DROP_DB=false
+for arg in "$@"; do
+    case $arg in
+        --drop-db)
+            DROP_DB=true
+            shift
+            ;;
+    esac
+done
+
 echo "Deploying GF22 GPS Tracker web service to VPS..."
 
 # Check if running as root (needed for port 80)
@@ -21,8 +32,36 @@ apt-get install -y python3 python3-pip postgresql postgresql-contrib nginx
 
 # Create PostgreSQL database and user
 echo "Setting up PostgreSQL database..."
-sudo -u postgres psql -c "CREATE DATABASE tracker_db;"
-sudo -u postgres psql -c "CREATE USER tracker_user WITH PASSWORD 'your_secure_password';"
+
+# Check if database exists
+DB_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='tracker_db'")
+
+if [ "$DB_EXISTS" = "1" ]; then
+    if [ "$DROP_DB" = true ]; then
+        echo "Database 'tracker_db' already exists. Dropping it as requested..."
+        sudo -u postgres psql -c "DROP DATABASE tracker_db;"
+        echo "Creating new database 'tracker_db'..."
+        sudo -u postgres psql -c "CREATE DATABASE tracker_db;"
+    else
+        echo "Database 'tracker_db' already exists. Skipping database creation."
+        echo "Use --drop-db option to drop and recreate the database."
+    fi
+else
+    echo "Creating database 'tracker_db'..."
+    sudo -u postgres psql -c "CREATE DATABASE tracker_db;"
+fi
+
+# Check if user exists
+USER_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='tracker_user'")
+
+if [ "$USER_EXISTS" = "1" ]; then
+    echo "User 'tracker_user' already exists. Skipping user creation."
+else
+    echo "Creating user 'tracker_user'..."
+    sudo -u postgres psql -c "CREATE USER tracker_user WITH PASSWORD 'your_secure_password';"
+fi
+
+# Grant privileges
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE tracker_db TO tracker_user;"
 
 # Install Python dependencies
